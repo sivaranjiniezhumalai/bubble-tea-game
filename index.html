@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>RANZ Boba Shop</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  
+  <button id="toggleControls">🎮</button>
+  <button id="toggleMusic" class="music-on">🔊</button>
+  
+  <!-- Arrow indicator with message -->
+  <div id="controlsHint" class="controls-hint">
+    <div class="hint-arrow">↙</div>
+    <div class="hint-text">Click to read instructions</div>
+  </div>
+  
+  <div id="controls" class="hidden">
+    <h3>🎮 Controls</h3>
+    <p><strong style="color: #6c5ce7; font-size: 16px; text-decoration: underline;">💻 PC:</strong></p>
+    <p><strong>SPACE</strong> - Pour Tea</p>
+    <p><strong>M</strong> - Pour Milk</p>
+    <p><strong>CLICK</strong> - Drop Boba</p>
+    <p style="margin-top: 10px;"><strong style="color: #e17055; font-size: 16px; text-decoration: underline;">📱 Mobile:</strong></p>
+    <p><strong>TAP</strong> - Drop Boba</p>
+    <p><strong>HOLD</strong> Tea/Milk buttons to pour</p>
+    <p style="margin-top: 10px;"><strong style="color: #27ae60; font-size: 16px; text-decoration: underline;">🎯 Both:</strong></p>
+    <p><strong>Serve</strong> - Complete order</p>
+    <p><strong>Reset</strong> - Start over</p>
+    <p style="margin-top: 10px; font-size: 12px; color: #636e72;">💡 Cup auto-resets after serving!</p>
+  </div>
+
+  <!-- Matter.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+  <script src="main.js"></script>
+  <script>
+    // Toggle controls visibility
+    const toggleBtn = document.getElementById('toggleControls');
+    const controls = document.getElementById('controls');
+    const controlsHint = document.getElementById('controlsHint');
+    
+    function toggleControls(e) {
+      e.stopPropagation(); // Prevent boba drop when clicking toggle
+      e.preventDefault(); // Prevent default touch behavior
+      controls.classList.toggle('hidden');
+      toggleBtn.classList.toggle('controls-visible');
+      
+      // Hide the hint after first click
+      if (!controls.classList.contains('hidden')) {
+        controlsHint.classList.add('hidden');
+      }
+    }
+    
+    toggleBtn.addEventListener('click', toggleControls);
+    toggleBtn.addEventListener('touchstart', toggleControls);
+    
+    // Music toggle functionality
+    const musicToggleBtn = document.getElementById('toggleMusic');
+    let isMusicPlaying = true;
+    
+    function toggleMusic(e) {
+      e.stopPropagation();
+      e.preventDefault();
+      
+      if (isMusicPlaying) {
+        // Mute background music
+        if (window.bgMusicElement) {
+          window.bgMusicElement.pause();
+        }
+        musicToggleBtn.textContent = '🔇';
+        musicToggleBtn.classList.remove('music-on');
+        musicToggleBtn.classList.add('music-off');
+      } else {
+        // Unmute background music
+        if (window.bgMusicElement) {
+          window.bgMusicElement.play().catch(e => console.log('Play failed:', e));
+        }
+        musicToggleBtn.textContent = '🔊';
+        musicToggleBtn.classList.remove('music-off');
+        musicToggleBtn.classList.add('music-on');
+      }
+      isMusicPlaying = !isMusicPlaying;
+    }
+    
+    musicToggleBtn.addEventListener('click', toggleMusic);
+    musicToggleBtn.addEventListener('touchstart', toggleMusic);
+  </script>
+</body>
+</html>
