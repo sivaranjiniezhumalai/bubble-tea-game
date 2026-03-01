@@ -207,6 +207,10 @@ let totalScore = 0; // Track total score for ending
 let fillHeight = 0;
 let pouring = false;
 
+// Pouring animation variables
+let teaPouringParticles = [];
+let milkPouringParticles = [];
+
 // Audio initialization flag for mobile
 let audioInitialized = false;
 
@@ -821,6 +825,15 @@ function drawMakingDrink() {
   drawLiquid();
   drawMilk();
   drawBobas();
+  
+  // Draw containers (always visible)
+  drawTeapot();
+  drawMilkPacket();
+  
+  // Draw pouring streams (only when buttons pressed)
+  drawTeaPouringStream();
+  drawMilkPouringStream();
+  
   drawLid();
   drawStraw();
   
@@ -1532,6 +1545,10 @@ function resetDrink() {
   bobas.forEach(b => World.remove(world, b));
   bobas = [];
   
+  // Clear pouring particles
+  teaPouringParticles = [];
+  milkPouringParticles = [];
+  
   // Quick squash animation on reset
   foxAnimator.triggerSquash(0.95, 1.05);
 }
@@ -1663,6 +1680,361 @@ function drawBobas() {
     }
 
   });
+}
+
+function drawTeapot() {
+  if (gameState !== "MAKING_DRINK") return;
+  
+  ctx.save();
+  
+  // Mobile responsiveness
+  const isMobile = canvas.width < 768;
+  const scale = isMobile ? 0.5 : 1;
+  const horizontalOffset = isMobile ? 60 : 100;
+  const verticalOffset = isMobile ? 60 : 150;
+  
+  const teapotX = cupX - horizontalOffset;
+  const teapotY = cupY - cupHeight / 2 - verticalOffset;
+  const tiltAngle = pouring ? (Math.sin(Date.now() * 0.003) * 0.15 + 0.3) : 0; // Only tilt when pouring
+  
+  // Draw teapot with optional tilt
+  ctx.translate(teapotX, teapotY);
+  ctx.rotate(tiltAngle);
+  ctx.scale(scale, scale);
+  
+  // Teapot body (rounded pot shape)
+  ctx.fillStyle = "#8B4513";
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 50, 45, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#654321";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  
+  // Teapot lid
+  ctx.fillStyle = "#A0522D";
+  ctx.beginPath();
+  ctx.ellipse(0, -35, 25, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  
+  // Lid knob
+  ctx.fillStyle = "#FFD700";
+  ctx.beginPath();
+  ctx.arc(0, -42, 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  
+  // Teapot handle
+  ctx.strokeStyle = "#654321";
+  ctx.lineWidth = 8;
+  ctx.beginPath();
+  ctx.arc(-35, 0, 20, -Math.PI/2, Math.PI/2);
+  ctx.stroke();
+  
+  // Teapot spout (where tea pours from)
+  ctx.fillStyle = "#8B4513";
+  ctx.beginPath();
+  ctx.moveTo(45, -10);
+  ctx.quadraticCurveTo(65, -5, 70, 5);
+  ctx.lineTo(65, 10);
+  ctx.quadraticCurveTo(60, 0, 45, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  
+  // Decorative pattern on teapot
+  ctx.fillStyle = "rgba(255, 215, 0, 0.3)";
+  ctx.beginPath();
+  ctx.arc(-10, -10, 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(10, 5, 8, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Steam coming from teapot
+  for (let i = 0; i < 3; i++) {
+    const steamX = -5 + i * 5;
+    const steamY = -50 + Math.sin(Date.now() * 0.005 + i) * 5;
+    ctx.fillStyle = `rgba(200, 200, 200, ${0.3 - i * 0.1})`;
+    ctx.beginPath();
+    ctx.arc(steamX, steamY, 5 - i, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  ctx.restore();
+}
+
+function drawMilkPacket() {
+  if (gameState !== "MAKING_DRINK") return;
+  
+  ctx.save();
+  
+  // Mobile responsiveness
+  const isMobile = canvas.width < 768;
+  const scale = isMobile ? 0.5 : 1;
+  const horizontalOffset = isMobile ? 60 : 100;
+  const verticalOffset = isMobile ? 60 : 150;
+  
+  const milkPacketX = cupX + horizontalOffset;
+  const milkPacketY = cupY - cupHeight / 2 - verticalOffset;
+  const tiltAngle = pouringMilk ? (Math.sin(Date.now() * 0.003) * 0.1 + 0.7) : 0; // Tilt more when pouring
+  
+  // Draw milk packet/carton with optional tilt
+  ctx.translate(milkPacketX, milkPacketY);
+  ctx.rotate(tiltAngle);
+  ctx.scale(scale, scale);
+  
+  // Milk carton body (rectangular carton)
+  ctx.fillStyle = "#FFFFFF";
+  ctx.strokeStyle = "#4A90E2";
+  ctx.lineWidth = 3;
+  
+  // Main carton box
+  ctx.fillRect(-30, -40, 60, 80);
+  ctx.strokeRect(-30, -40, 60, 80);
+  
+  // Carton top (folded flaps)
+  ctx.fillStyle = "#E6F3FF";
+  ctx.beginPath();
+  ctx.moveTo(-30, -40);
+  ctx.lineTo(-15, -55);
+  ctx.lineTo(15, -55);
+  ctx.lineTo(30, -40);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  
+  // Opening flap on top
+  ctx.fillStyle = "#FFE6E6";
+  ctx.beginPath();
+  ctx.moveTo(-15, -55);
+  ctx.lineTo(-5, -65);
+  ctx.lineTo(5, -65);
+  ctx.lineTo(15, -55);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  
+  // Milk carton label/text
+  ctx.fillStyle = "#4A90E2";
+  ctx.font = "bold 16px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("MILK", 0, -10);
+  
+  // Draw milk drop pattern on carton
+  ctx.fillStyle = "rgba(74, 144, 226, 0.3)";
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.ellipse(-10 + i * 10, 5, 4, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // Blue stripe decoration
+  ctx.fillStyle = "#4A90E2";
+  ctx.fillRect(-30, 10, 60, 8);
+  ctx.fillRect(-30, 25, 60, 8);
+  
+  // Freshness indicator
+  ctx.fillStyle = "#27AE60";
+  ctx.beginPath();
+  ctx.arc(18, -25, 6, 0, Math.PI * 2);
+  ctx.fill();
+  
+  ctx.restore();
+}
+
+function drawTeaPouringStream() {
+  if (!pouring || gameState !== "MAKING_DRINK") return;
+
+  // Mobile responsiveness
+  const isMobile = canvas.width < 768;
+  const scale = isMobile ? 0.5 : 1;
+  const horizontalOffset = isMobile ? 60 : 100;
+  const verticalOffset = isMobile ? 60 : 150;
+  
+  const teapotX = cupX - horizontalOffset;
+  const teapotY = cupY - cupHeight / 2 - verticalOffset;
+  const tiltAngle = Math.sin(Date.now() * 0.003) * 0.15 + 0.3; // Tilting animation
+  
+  // Calculate pour point (from spout) - adjust for scale
+  const spoutTipX = teapotX + Math.cos(tiltAngle) * 70 * scale - Math.sin(tiltAngle) * 5 * scale;
+  const spoutTipY = teapotY + Math.sin(tiltAngle) * 70 * scale + Math.cos(tiltAngle) * 5 * scale;
+  const pourTargetX = cupX;
+  const pourTargetY = cupY - cupHeight / 2 + 10;
+  const liquidLevelY = cupY + cupHeight / 2 - fillHeight;
+  
+  // Draw continuous viscous stream (waterfall effect)
+  ctx.save();
+  const baseStreamWidth = isMobile ? 12 : 18;
+  const streamWidth = baseStreamWidth + Math.sin(Date.now() * 0.005) * 3; // Thick stream with slight pulsing
+  const waveTime = Date.now() * 0.003;
+  
+  // Create gradient for depth
+  const gradient = ctx.createLinearGradient(spoutTipX, spoutTipY, pourTargetX, liquidLevelY);
+  gradient.addColorStop(0, 'rgba(181, 101, 29, 0.5)');
+  gradient.addColorStop(0.3, 'rgba(181, 101, 29, 0.85)');
+  gradient.addColorStop(0.7, 'rgba(181, 101, 29, 0.95)');
+  gradient.addColorStop(1, 'rgba(181, 101, 29, 0.7)');
+  
+  ctx.fillStyle = gradient;
+  
+  // Draw stream path with curves
+  ctx.beginPath();
+  const segments = 25;
+  const streamPoints = [];
+  
+  // Calculate smooth stream path
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    const x = spoutTipX + (pourTargetX - spoutTipX) * t;
+    const y = spoutTipY + (liquidLevelY - spoutTipY) * t;
+    
+    // Add flowing wave motion
+    const wave = Math.sin(t * Math.PI * 2 + waveTime) * 4 * (1 - t * 0.5);
+    const curve = t * t * 8; // Natural curve from gravity
+    
+    streamPoints.push({ x: x + wave + curve, y: y });
+  }
+  
+  // Draw left edge of stream
+  ctx.moveTo(streamPoints[0].x - streamWidth / 2, streamPoints[0].y);
+  for (let i = 0; i < streamPoints.length; i++) {
+    const width = streamWidth * (1 + i / segments * 0.2); // Slightly widen as it falls
+    ctx.lineTo(streamPoints[i].x - width / 2, streamPoints[i].y);
+  }
+  
+  // Draw right edge of stream (reverse)
+  for (let i = streamPoints.length - 1; i >= 0; i--) {
+    const width = streamWidth * (1 + i / segments * 0.2);
+    ctx.lineTo(streamPoints[i].x + width / 2, streamPoints[i].y);
+  }
+  
+  ctx.closePath();
+  ctx.fill();
+  
+  // Add glossy highlight on stream
+  const highlightGradient = ctx.createLinearGradient(
+    streamPoints[0].x - streamWidth / 4, streamPoints[0].y,
+    streamPoints[0].x + streamWidth / 4, streamPoints[0].y
+  );
+  highlightGradient.addColorStop(0, 'rgba(220, 180, 140, 0)');
+  highlightGradient.addColorStop(0.5, 'rgba(220, 180, 140, 0.4)');
+  highlightGradient.addColorStop(1, 'rgba(220, 180, 140, 0)');
+  
+  ctx.fillStyle = highlightGradient;
+  ctx.beginPath();
+  ctx.moveTo(streamPoints[0].x - streamWidth / 6, streamPoints[0].y);
+  for (let i = 0; i < streamPoints.length; i++) {
+    const width = streamWidth / 3;
+    ctx.lineTo(streamPoints[i].x - width / 2, streamPoints[i].y);
+  }
+  for (let i = streamPoints.length - 1; i >= 0; i--) {
+    const width = streamWidth / 3;
+    ctx.lineTo(streamPoints[i].x + width / 2, streamPoints[i].y);
+  }
+  ctx.closePath();
+  ctx.fill();
+  
+  ctx.restore();
+}
+
+function drawMilkPouringStream() {
+  if (!pouringMilk || gameState !== "MAKING_DRINK") return;
+
+  // Mobile responsiveness
+  const isMobile = canvas.width < 768;
+  const scale = isMobile ? 0.5 : 1;
+  const horizontalOffset = isMobile ? 60 : 100;
+  const verticalOffset = isMobile ? 60 : 150;
+  
+  const milkPacketX = cupX + horizontalOffset;
+  const milkPacketY = cupY - cupHeight / 2 - verticalOffset;
+  const tiltAngle = Math.sin(Date.now() * 0.003) * 0.1 + 0.7; // Tilting animation
+  
+  // Calculate pour point from upper corner of tilted packet - adjust for scale
+  // Upper right corner is at (30, -40) before rotation
+  const cornerX = 30 * scale;
+  const cornerY = -40 * scale;
+  const openingX = milkPacketX + Math.cos(tiltAngle) * cornerX - Math.sin(tiltAngle) * cornerY;
+  const openingY = milkPacketY + Math.sin(tiltAngle) * cornerX + Math.cos(tiltAngle) * cornerY;
+  const pourTargetX = cupX;
+  const pourTargetY = cupY - cupHeight / 2 + 10;
+  const liquidLevelY = cupY + cupHeight / 2 - milkHeight;
+  
+  // Draw continuous viscous stream (waterfall effect)
+  ctx.save();
+  const baseStreamWidth = isMobile ? 10 : 16;
+  const streamWidth = baseStreamWidth + Math.sin(Date.now() * 0.005) * 2; // Thick stream with slight pulsing
+  const waveTime = Date.now() * 0.003;
+  
+  // Create gradient for depth
+  const gradient = ctx.createLinearGradient(openingX, openingY, pourTargetX, liquidLevelY);
+  gradient.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
+  gradient.addColorStop(0.3, 'rgba(255, 255, 255, 0.9)');
+  gradient.addColorStop(0.7, 'rgba(255, 255, 255, 0.95)');
+  gradient.addColorStop(1, 'rgba(255, 255, 255, 0.75)');
+  
+  ctx.fillStyle = gradient;
+  
+  // Draw stream path with curves
+  ctx.beginPath();
+  const segments = 25;
+  const streamPoints = [];
+  
+  // Calculate smooth stream path
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    const x = openingX + (pourTargetX - openingX) * t;
+    const y = openingY + (liquidLevelY - openingY) * t;
+    
+    // Add flowing wave motion
+    const wave = Math.sin(t * Math.PI * 2 + waveTime + Math.PI) * 4 * (1 - t * 0.5);
+    const curve = -t * t * 6; // Natural curve from trajectory
+    
+    streamPoints.push({ x: x + wave + curve, y: y });
+  }
+  
+  // Draw left edge of stream
+  ctx.moveTo(streamPoints[0].x - streamWidth / 2, streamPoints[0].y);
+  for (let i = 0; i < streamPoints.length; i++) {
+    const width = streamWidth * (1 + i / segments * 0.2); // Slightly widen as it falls
+    ctx.lineTo(streamPoints[i].x - width / 2, streamPoints[i].y);
+  }
+  
+  // Draw right edge of stream (reverse)
+  for (let i = streamPoints.length - 1; i >= 0; i--) {
+    const width = streamWidth * (1 + i / segments * 0.2);
+    ctx.lineTo(streamPoints[i].x + width / 2, streamPoints[i].y);
+  }
+  
+  ctx.closePath();
+  ctx.fill();
+  
+  // Add glossy highlight on stream
+  const highlightGradient = ctx.createLinearGradient(
+    streamPoints[0].x - streamWidth / 4, streamPoints[0].y,
+    streamPoints[0].x + streamWidth / 4, streamPoints[0].y
+  );
+  highlightGradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+  highlightGradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.5)');
+  highlightGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  
+  ctx.fillStyle = highlightGradient;
+  ctx.beginPath();
+  ctx.moveTo(streamPoints[0].x - streamWidth / 6, streamPoints[0].y);
+  for (let i = 0; i < streamPoints.length; i++) {
+    const width = streamWidth / 3;
+    ctx.lineTo(streamPoints[i].x - width / 2, streamPoints[i].y);
+  }
+  for (let i = streamPoints.length - 1; i >= 0; i--) {
+    const width = streamWidth / 3;
+    ctx.lineTo(streamPoints[i].x + width / 2, streamPoints[i].y);
+  }
+  ctx.closePath();
+  ctx.fill();
+  
+  ctx.restore();
 }
 
 function drawLid() {
@@ -2098,7 +2470,8 @@ function drawStats() {
 function drawProgressBar(x, y, label, value, target, max, width = 200, height = 20) {
 
   const diff = Math.abs(value - target);
-  const isClose = diff <= 5;
+  const exceeds = value > target; // Check if value exceeds the customer's requirement by any amount
+  const isClose = value >= target - 5 && value <= target; // Within acceptable range (at or slightly below target)
 
   // Label
   ctx.fillStyle = "#2d3436";
@@ -2108,8 +2481,16 @@ function drawProgressBar(x, y, label, value, target, max, width = 200, height = 
   ctx.fillStyle = "#dfe6e9";
   ctx.fillRect(x, y, width, height);
 
-  // Fill
-  ctx.fillStyle = isClose ? "#2ecc71" : "#e74c3c";
+  // Fill - Red when exceeds limit, Green when close, Orange/Yellow when below
+  let barColor;
+  if (exceeds) {
+    barColor = "#e74c3c"; // Red when exceeding customer's requirement
+  } else if (isClose) {
+    barColor = "#2ecc71"; // Green when within target range
+  } else {
+    barColor = "#f39c12"; // Orange/Yellow when below target
+  }
+  ctx.fillStyle = barColor;
 
   const fillWidth = Math.min(value / max, 1) * width;
   ctx.fillRect(x, y, fillWidth, height);
