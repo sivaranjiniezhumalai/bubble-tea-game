@@ -1003,7 +1003,7 @@ function drawOpening() {
   ctx.save();
   ctx.translate(canvas.width / 2, 100);
   ctx.scale(pulse, pulse);
-  ctx.fillText("✨ Welcome To RANZ Shop... ✨", 0, 0);
+  ctx.fillText("✨ Welcome To Foxy Boba Bar... ✨", 0, 0);
   ctx.restore();
   
   ctx.shadowBlur = 0;
@@ -2470,8 +2470,8 @@ function drawStats() {
 function drawProgressBar(x, y, label, value, target, max, width = 200, height = 20) {
 
   const diff = Math.abs(value - target);
-  const exceeds = value > target; // Check if value exceeds the customer's requirement by any amount
-  const isClose = value >= target - 5 && value <= target; // Within acceptable range (at or slightly below target)
+  const isClose = diff <= 5;
+  const exceeds = value > target + 5; // Check if value exceeds the customer's requirement
 
   // Label
   ctx.fillStyle = "#2d3436";
