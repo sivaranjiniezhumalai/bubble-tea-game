@@ -19,9 +19,15 @@ const bgMusic = new Audio('assets/bg-music.mp3');
 bgMusic.loop = true;
 bgMusic.volume = 0.3;
 bgMusic.preload = 'auto';
+bgMusic.autoplay = true;
 
 // Expose bgMusic to window for music toggle button
 window.bgMusicElement = bgMusic;
+
+// Try to start music immediately (works on desktop)
+bgMusic.play().catch(() => {
+  // Autoplay blocked, will retry on load events
+});
 
 const bobaSound = new Audio('assets/boba-drop.mp3');
 bobaSound.volume = 0.5;
@@ -180,6 +186,9 @@ let lidClosing = false;
 let strawProgress = 0;
 let insertingStraw = false;
 
+let mixingDrink = false;
+let mixProgress = 0;
+
 let drinkServeProgress = 0;
 let drinkX = 0;
 let drinkY = 0;
@@ -235,6 +244,8 @@ function handlePointerDown(mx, my) {
       if (controlsHint) {
         controlsHint.classList.add('hidden');
       }
+      // Try to start music on button click (respects user mute preference)
+      startBackgroundMusic();
       changeState("CUSTOMER_ENTER");
       return;
     }
@@ -295,6 +306,7 @@ function handlePointerDown(mx, my) {
     my < startY + spacing * 2 + buttonHeight
   ) {
     pouring = true;
+    teaSound.currentTime = 0;
     teaSound.play().catch(e => console.log('Audio play failed:', e));
     return;
   }
@@ -307,6 +319,7 @@ function handlePointerDown(mx, my) {
     my < startY + spacing * 3 + buttonHeight
   ) {
     pouringMilk = true;
+    milkSound.currentTime = 0;
     milkSound.play().catch(e => console.log('Audio play failed:', e));
     return;
   }
@@ -316,10 +329,17 @@ function handlePointerDown(mx, my) {
 }
 
 function handlePointerUp(mx, my) {
-  pouring = false;
-  pouringMilk = false;
-  teaSound.pause();
-  milkSound.pause();
+  // Stop pouring and stop sounds when releasing button
+  if (pouring) {
+    pouring = false;
+    teaSound.pause();
+    teaSound.currentTime = 0;
+  }
+  if (pouringMilk) {
+    pouringMilk = false;
+    milkSound.pause();
+    milkSound.currentTime = 0;
+  }
 }
 
 window.addEventListener("mousedown", (e) => {
@@ -344,12 +364,14 @@ window.addEventListener("touchend", (e) => {
 }, { passive: false });
 
 window.addEventListener("keydown", (e) => {
-  if (gameState === "MAKING_DRINK" && e.code === "Space") {
+  if (gameState === "MAKING_DRINK" && e.code === "Space" && !pouring) {
     pouring = true;
+    teaSound.currentTime = 0;
     teaSound.play().catch(e => console.log('Audio play failed:', e));
   }
-  else if (gameState === "MAKING_DRINK" && e.code === "KeyM") {
+  else if (gameState === "MAKING_DRINK" && e.code === "KeyM" && !pouringMilk) {
     pouringMilk = true;
+    milkSound.currentTime = 0;
     milkSound.play().catch(e => console.log('Audio play failed:', e));
   }
 });
@@ -358,10 +380,12 @@ window.addEventListener("keyup", (e) => {
   if (e.code === "Space") {
     pouring = false;
     teaSound.pause();
+    teaSound.currentTime = 0;
   }
   else if (e.code === "KeyM") {
     pouringMilk = false;
     milkSound.pause();
+    milkSound.currentTime = 0;
   }
 });
 
@@ -414,6 +438,8 @@ function changeState(newState) {
   
   if (newState === "OPENING") {
     foxAnimator.setState('walk', 'happy');
+    // Try to start music on opening screen (respects user mute preference)
+    startBackgroundMusic();
   }
   
   if (newState === "GAME_END") {
@@ -525,20 +551,33 @@ function gameLoop(time) {
     if (strawProgress >= 1) {
       insertingStraw = false;
       strawProgress = 1; // Keep straw visible
-      // After straw is fully inserted, check the drink
+      // After straw is fully inserted, start mixing animation
+      mixingDrink = true;
+      mixProgress = 0;
+    }
+  }
+  
+  // Update mixing animation
+  if (mixingDrink && gameState === "MAKING_DRINK") {
+    mixProgress += 0.015; // Smooth mixing animation
+    if (mixProgress >= 1) {
+      mixingDrink = false;
+      mixProgress = 0;
+      // After mixing is complete, check the drink
       checkDrink();
     }
   }
   
+  // Continuous pouring when holding button
   if (gameState === "MAKING_DRINK" && pouring) {
-    fillHeight += 2;
+    fillHeight += 0.3; // Very slow, precise pouring rate (~0.5-1% per second)
     foxAnimator.setState('pouring', 'neutral');
     if (fillHeight > cupHeight - 20) {
       fillHeight = cupHeight - 20;
     }
   }
   else if (gameState === "MAKING_DRINK" && pouringMilk) {
-    milkHeight += 2;
+    milkHeight += 0.3; // Very slow, precise pouring rate (~0.5-1% per second)
     foxAnimator.setState('pouring', 'neutral');
     if (milkHeight > cupHeight - 20) {
       milkHeight = cupHeight - 20;
@@ -562,14 +601,105 @@ function gameLoop(time) {
 
 requestAnimationFrame(gameLoop);
 
-// Try to start background music on page load (will work on desktop, blocked on mobile)
-bgMusic.currentTime = 0;
-bgMusic.play().then(() => {
-  audioInitialized = true;
-  console.log('Background music autoplay successful');
-}).catch(e => {
-  console.log('Background music autoplay blocked - will play on first user interaction');
-  // Don't set audioInitialized so it will retry on first user interaction
+// Try to start background music on page load and restart on every refresh
+function startBackgroundMusic() {
+  // Check if user has muted music
+  if (sessionStorage.getItem('bgMusicPlaying') === 'false') {
+    console.log('Music muted by user - not starting');
+    return;
+  }
+  
+  bgMusic.currentTime = 0;
+  bgMusic.play().then(() => {
+    console.log('Background music started successfully');
+    audioInitialized = true;
+    sessionStorage.setItem('bgMusicPlaying', 'true');
+  }).catch(e => {
+    console.log('Autoplay blocked:', e.message);
+    audioInitialized = false;
+  });
+}
+
+// Detect if this is a page refresh (not first visit)
+const isPageRefresh = performance.navigation && performance.navigation.type === 1 ||
+  performance.getEntriesByType('navigation').map(nav => nav.type).includes('reload');
+
+if (isPageRefresh) {
+  console.log('Page refresh detected - starting music aggressively');
+}
+
+// Save that we want music to play (only if not already set by user preference)
+if (!sessionStorage.getItem('bgMusicPlaying')) {
+  sessionStorage.setItem('bgMusicPlaying', 'true');
+}
+
+// Aggressive autoplay strategy - try immediately
+startBackgroundMusic();
+
+// Try again after 50ms (very quick retry)
+setTimeout(startBackgroundMusic, 50);
+
+// Try again on DOMContentLoaded
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(startBackgroundMusic, 100);
+    setTimeout(startBackgroundMusic, 300);
+  });
+} else {
+  setTimeout(startBackgroundMusic, 100);
+  setTimeout(startBackgroundMusic, 300);
+}
+
+// Try again on window load
+window.addEventListener('load', () => {
+  setTimeout(startBackgroundMusic, 150);
+  setTimeout(startBackgroundMusic, 400);
+  setTimeout(startBackgroundMusic, 700);
+});
+
+// Critical: pageshow event fires on page refresh and back/forward navigation
+window.addEventListener('pageshow', (event) => {
+  console.log('Page shown - starting music');
+  if (sessionStorage.getItem('bgMusicPlaying') === 'true') {
+    setTimeout(startBackgroundMusic, 50);
+    setTimeout(startBackgroundMusic, 200);
+  }
+});
+
+// Add multiple event listeners to ensure music starts on any user interaction
+const startMusicOnInteraction = () => {
+  if (!audioInitialized || bgMusic.paused) {
+    startBackgroundMusic();
+  }
+};
+
+// Try to start music on various user interactions (fallback for mobile)
+document.addEventListener('click', startMusicOnInteraction, { once: true });
+document.addEventListener('touchstart', startMusicOnInteraction, { once: true });
+document.addEventListener('keydown', startMusicOnInteraction, { once: true });
+document.addEventListener('touchend', startMusicOnInteraction, { once: true });
+
+// Force restart music when page becomes visible (handles refresh/tab switch)
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && window.isMusicPlaying !== false) {
+    startBackgroundMusic();
+  }
+});
+
+// Restart music when window regains focus
+window.addEventListener('focus', () => {
+  if (window.isMusicPlaying !== false && bgMusic.paused) {
+    startBackgroundMusic();
+  }
+});
+
+// Save music state before page unload/refresh
+window.addEventListener('beforeunload', () => {
+  if (window.isMusicPlaying !== false) {
+    sessionStorage.setItem('bgMusicPlaying', 'true');
+  } else {
+    sessionStorage.setItem('bgMusicPlaying', 'false');
+  }
 });
 
 
@@ -693,6 +823,11 @@ function drawMakingDrink() {
   drawBobas();
   drawLid();
   drawStraw();
+  
+  // Show mixing animation if active
+  if (mixingDrink && mixProgress > 0) {
+    drawMixingAnimation();
+  }
 
   drawButtons();
   drawStats();
@@ -765,6 +900,13 @@ function drawLiquid() {
 
   for (let x = -cupWidth / 2; x <= cupWidth / 2; x++) {
     let wave = Math.sin((x + Date.now() * 0.005)) * 5;
+    
+    // During mixing: add intense wave effect
+    if (mixingDrink && mixProgress > 0) {
+      wave += Math.sin((x * 0.1 + mixProgress * Math.PI * 8)) * 20 * Math.sin(mixProgress * Math.PI);
+      wave += Math.cos((x * 0.15 + mixProgress * Math.PI * 12)) * 15 * Math.sin(mixProgress * Math.PI);
+    }
+    
     ctx.lineTo(cupX + x, liquidTop + wave);
   }
 
@@ -1380,6 +1522,8 @@ function resetDrink() {
   lidClosing = false;
   strawProgress = 0;
   insertingStraw = false;
+  mixingDrink = false;
+  mixProgress = 0;
   drinkServeProgress = 0;
   drinkX = 0;
   drinkY = 0;
@@ -1444,31 +1588,75 @@ function drawMilk() {
   ctx.clip();
 
   ctx.fillStyle = "rgba(255,255,255,0.6)";
-
-  ctx.fillRect(
-    cupX - cupWidth / 2,
-    milkTop,
-    cupWidth,
-    milkHeight
-  );
+  
+  // During mixing: draw milk with wave pattern instead of solid rectangle
+  if (mixingDrink && mixProgress > 0) {
+    ctx.beginPath();
+    ctx.moveTo(cupX - cupWidth / 2, cupY + cupHeight / 2);
+    
+    for (let x = -cupWidth / 2; x <= cupWidth / 2; x += 2) {
+      const wave = Math.sin((x * 0.08 + mixProgress * Math.PI * 10)) * 18 * Math.sin(mixProgress * Math.PI);
+      const wave2 = Math.cos((x * 0.12 + mixProgress * Math.PI * 15)) * 12 * Math.sin(mixProgress * Math.PI);
+      ctx.lineTo(cupX + x, milkTop + wave + wave2);
+    }
+    
+    ctx.lineTo(cupX + cupWidth / 2, milkTop + milkHeight);
+    ctx.lineTo(cupX + cupWidth / 2, cupY + cupHeight / 2);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    // Normal milk display
+    ctx.fillRect(
+      cupX - cupWidth / 2,
+      milkTop,
+      cupWidth,
+      milkHeight
+    );
+  }
 
   ctx.restore();
 }
 
 function drawBobas() {
 
-  bobas.forEach(b => {
+  bobas.forEach((b, index) => {
+    let x = b.position.x;
+    let y = b.position.y;
+    
+    // During mixing: make bobas float and shake dramatically
+    if (mixingDrink && mixProgress > 0) {
+      const floatStrength = 15;
+      const shakeStrength = 10;
+      const rotationSpeed = mixProgress * Math.PI * 10;
+      
+      // Circular floating motion
+      x += Math.cos(rotationSpeed + index * 0.5) * floatStrength * Math.sin(mixProgress * Math.PI);
+      y += Math.sin(rotationSpeed + index * 0.7) * floatStrength * Math.sin(mixProgress * Math.PI);
+      
+      // Additional shake
+      x += Math.sin(mixProgress * Math.PI * 20 + index) * shakeStrength;
+      y += Math.cos(mixProgress * Math.PI * 20 + index * 1.3) * shakeStrength;
+    }
 
     if (b.circleRadius) {
       ctx.fillStyle = "#3b1c32";
       ctx.beginPath();
-      ctx.arc(b.position.x, b.position.y, 12, 0, Math.PI * 2);
+      ctx.arc(x, y, 12, 0, Math.PI * 2);
       ctx.fill();
+      
+      // Add glow effect during mixing
+      if (mixingDrink && mixProgress > 0) {
+        const glowAlpha = 0.3 * Math.sin(mixProgress * Math.PI * 5 + index);
+        ctx.fillStyle = `rgba(255, 255, 255, ${glowAlpha})`;
+        ctx.beginPath();
+        ctx.arc(x, y, 15, 0, Math.PI * 2);
+        ctx.fill();
+      }
     } else {
       ctx.fillStyle = "#dff9fb";
       ctx.fillRect(
-        b.position.x - 10,
-        b.position.y - 10,
+        x - 10,
+        y - 10,
         20,
         20
       );
@@ -1549,6 +1737,110 @@ function drawStraw() {
   ctx.strokeStyle = "rgba(0, 0, 0, 0.3)";
   ctx.lineWidth = 1;
   ctx.strokeRect(strawX - strawWidth / 2, strawStartY, strawWidth, strawHeight);
+  
+  ctx.restore();
+}
+
+function drawMixingAnimation() {
+  // Optimized mixing animation - less computationally intensive but still dramatic
+  ctx.save();
+  
+  // Shake intensity that increases then decreases
+  const shakeIntensity = Math.sin(mixProgress * Math.PI) * 15;
+  const shakeX = Math.sin(mixProgress * Math.PI * 20) * shakeIntensity;
+  const shakeY = Math.cos(mixProgress * Math.PI * 20) * shakeIntensity;
+  
+  // Apply shake to entire drawing
+  ctx.translate(shakeX, shakeY);
+  
+  // Two layers of spinning swirls - reduced for performance
+  const swirlLayers = 2;
+  for (let layer = 0; layer < swirlLayers; layer++) {
+    const particleCount = 12;
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (mixProgress * Math.PI * (10 + layer * 4)) + (i * Math.PI * 2 / particleCount) + (layer * Math.PI / 3);
+      const radius = 30 + layer * 15 + Math.sin(mixProgress * Math.PI * 4 + i) * 12;
+      const px = cupX + Math.cos(angle) * radius;
+      const py = cupY + Math.sin(angle) * radius * 0.6;
+      
+      // Swirl particles with varying colors and sizes
+      const size = 4 + Math.sin(mixProgress * Math.PI * 3 + i) * 2;
+      const alpha = 0.6 * Math.sin(mixProgress * Math.PI);
+      
+      // Mix of white and tea-colored particles
+      const colorMix = i % 3;
+      if (colorMix === 0) {
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+      } else if (colorMix === 1) {
+        ctx.fillStyle = `rgba(181, 101, 29, ${alpha})`;
+      } else {
+        ctx.fillStyle = `rgba(200, 150, 100, ${alpha})`;
+      }
+      
+      ctx.beginPath();
+      ctx.arc(px, py, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  
+  // Bubbles shooting up - reduced for performance
+  const bubbleCount = 10;
+  for (let i = 0; i < bubbleCount; i++) {
+    const bubbleProgress = (mixProgress * 3 + i * 0.1) % 1;
+    const spiralAngle = bubbleProgress * Math.PI * 4 + i * 0.5;
+    const spiralRadius = Math.sin(bubbleProgress * Math.PI) * 25;
+    
+    const bx = cupX + Math.cos(spiralAngle) * spiralRadius;
+    const by = cupY + cupHeight / 2 - (bubbleProgress * cupHeight * 1.2);
+    const bubbleSize = 3 + Math.sin(bubbleProgress * Math.PI) * 4;
+    
+    if (bubbleProgress < 1) {
+      const bubbleAlpha = (0.6 * (1 - bubbleProgress)) * Math.sin(mixProgress * Math.PI);
+      ctx.fillStyle = `rgba(255, 255, 255, ${bubbleAlpha})`;
+      ctx.beginPath();
+      ctx.arc(bx, by, bubbleSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  
+  // Sparkle effects - reduced for performance
+  const sparkleCount = 12;
+  for (let i = 0; i < sparkleCount; i++) {
+    const sparkleAngle = (mixProgress * Math.PI * 10) + (i * Math.PI * 2 / sparkleCount);
+    const sparkleRadius = 60 + Math.sin(mixProgress * Math.PI * 6 + i) * 20;
+    const sx = cupX + Math.cos(sparkleAngle) * sparkleRadius;
+    const sy = cupY + Math.sin(sparkleAngle) * sparkleRadius;
+    
+    const sparkleAlpha = 0.7 * Math.sin(mixProgress * Math.PI);
+    const sparkleSize = 2 + Math.sin(mixProgress * Math.PI * 8 + i * 2) * 2;
+    
+    // Golden sparkles
+    ctx.fillStyle = `rgba(255, 220, 100, ${sparkleAlpha})`;
+    ctx.beginPath();
+    ctx.arc(sx, sy, sparkleSize, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // Animated "MIXING!" text with shake
+  const textShake = Math.sin(mixProgress * Math.PI * 20) * 6;
+  const mixTextAlpha = 0.85 * Math.sin(mixProgress * Math.PI);
+  const textScale = 1 + Math.sin(mixProgress * Math.PI * 6) * 0.15;
+  
+  ctx.save();
+  ctx.translate(cupX + textShake, cupY - cupHeight / 2 - 50);
+  ctx.scale(textScale, textScale);
+  
+  // Text shadow
+  ctx.fillStyle = `rgba(0, 0, 0, ${mixTextAlpha * 0.3})`;
+  ctx.font = "bold 32px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("✨ MIXING! ✨", 2, 2);
+  
+  // Main text - simplified to solid color
+  ctx.fillStyle = `rgba(108, 92, 231, ${mixTextAlpha})`;
+  ctx.fillText("✨ MIXING! ✨", 0, 0);
+  
+  ctx.restore();
   
   ctx.restore();
 }
@@ -1729,7 +2021,7 @@ function drawButtons() {
   ctx.textAlign = "center";
 
   // SERVE BUTTON - shows different state during straw insertion
-  const isServing = insertingStraw || strawProgress > 0 && strawProgress < 1;
+  const isServing = insertingStraw || mixingDrink || (strawProgress > 0 && strawProgress < 1);
   ctx.fillStyle = isServing ? "#95a5a6" : "#6c5ce7";
   ctx.beginPath();
   ctx.roundRect(buttonX, startY, buttonWidth, buttonHeight, borderRadius);

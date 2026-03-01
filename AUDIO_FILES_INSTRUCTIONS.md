@@ -77,8 +77,8 @@ cafe/
 
 - **Background Music**: Starts immediately when the page opens, loops throughout the game
 - **Boba Drop**: Plays each time you click/tap to drop a boba ball
-- **Tea Pouring**: Plays continuously while holding SPACE (PC) or Tea button (Mobile/PC)
-- **Milk Pouring**: Plays continuously while holding M key (PC) or Milk button (Mobile/PC)
+- **Tea Pouring**: Plays continuously while holding SPACE (PC) or Tea button (Mobile/PC), stops when released
+- **Milk Pouring**: Plays continuously while holding M key (PC) or Milk button (Mobile/PC), stops when released
 - **Serve**: Plays when clicking the "Serve" button to serve the drink
 - **Game End**: Plays when all 5 customers have been served and the game ends
 

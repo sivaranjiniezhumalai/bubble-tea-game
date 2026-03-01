@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>RANZ Boba Shop</title>
   <link rel="stylesheet" href="style.css" />
+  <script>
+    // Early music initialization attempt
+    window.addEventListener('DOMContentLoaded', function() {
+      if (window.bgMusicElement) {
+        window.bgMusicElement.play().catch(e => console.log('Early autoplay blocked'));
+      }
+    });
+  </script>
 </head>
 <body>
   <canvas id="gameCanvas"></canvas>
@@ -21,8 +29,8 @@
   <div id="controls" class="hidden">
     <h3>🎮 Controls</h3>
     <p><strong style="color: #6c5ce7; font-size: 16px; text-decoration: underline;">💻 PC:</strong></p>
-    <p><strong>SPACE</strong> - Pour Tea</p>
-    <p><strong>M</strong> - Pour Milk</p>
+    <p><strong>SPACE</strong> - Hold to Pour Tea</p>
+    <p><strong>M</strong> - Hold to Pour Milk</p>
     <p><strong>CLICK</strong> - Drop Boba</p>
     <p style="margin-top: 10px;"><strong style="color: #e17055; font-size: 16px; text-decoration: underline;">📱 Mobile:</strong></p>
     <p><strong>TAP</strong> - Drop Boba</p>
@@ -30,7 +38,7 @@
     <p style="margin-top: 10px;"><strong style="color: #27ae60; font-size: 16px; text-decoration: underline;">🎯 Both:</strong></p>
     <p><strong>Serve</strong> - Complete order</p>
     <p><strong>Reset</strong> - Start over</p>
-    <p style="margin-top: 10px; font-size: 12px; color: #636e72;">💡 Cup auto-resets after serving!</p>
+    <p style="margin-top: 10px; font-size: 12px; color: #636e72;">💡 Hold to pour continuously!</p>
   </div>
 
   <!-- Matter.js CDN -->
@@ -59,30 +67,46 @@
     
     // Music toggle functionality
     const musicToggleBtn = document.getElementById('toggleMusic');
-    let isMusicPlaying = true;
+    
+    // Check sessionStorage for saved music state
+    const savedMusicState = sessionStorage.getItem('bgMusicPlaying');
+    let isMusicPlaying = savedMusicState !== 'false'; // Default to true unless explicitly set to false
+    
+    // Set button appearance based on saved state
+    if (!isMusicPlaying) {
+      musicToggleBtn.textContent = '🔇';
+      musicToggleBtn.classList.remove('music-on');
+      musicToggleBtn.classList.add('music-off');
+      window.isMusicPlaying = false;
+    }
     
     function toggleMusic(e) {
       e.stopPropagation();
       e.preventDefault();
       
-      if (isMusicPlaying) {
+      isMusicPlaying = !isMusicPlaying; // Toggle first
+      window.isMusicPlaying = isMusicPlaying;
+      
+      if (!isMusicPlaying) {
         // Mute background music
         if (window.bgMusicElement) {
           window.bgMusicElement.pause();
         }
+        sessionStorage.setItem('bgMusicPlaying', 'false');
         musicToggleBtn.textContent = '🔇';
         musicToggleBtn.classList.remove('music-on');
         musicToggleBtn.classList.add('music-off');
       } else {
         // Unmute background music
         if (window.bgMusicElement) {
+          window.bgMusicElement.currentTime = 0;
           window.bgMusicElement.play().catch(e => console.log('Play failed:', e));
         }
+        sessionStorage.setItem('bgMusicPlaying', 'true');
         musicToggleBtn.textContent = '🔊';
         musicToggleBtn.classList.remove('music-off');
         musicToggleBtn.classList.add('music-on');
       }
-      isMusicPlaying = !isMusicPlaying;
     }
     
     musicToggleBtn.addEventListener('click', toggleMusic);
